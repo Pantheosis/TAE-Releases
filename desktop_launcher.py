@@ -118,10 +118,36 @@ def _self_invoke_command(port: str) -> list:
     return [sys.executable, os.path.abspath(__file__), _SERVER_SENTINEL, port]
 
 
+def _set_windows_dpi_awareness():
+    """Tell Windows this process handles its own per-monitor DPI scaling.
+
+    Without this, an unaware process gets DPI-virtualized by Windows: it
+    thinks it's drawing at the requested size/position, but Windows silently
+    bitmap-scales the actual window to compensate for display scaling. The
+    visible symptom is a window that renders larger than the screen and
+    offset away from where Qt's own centering logic (platforms/qt.py, which
+    positions purely from QScreen geometry) placed it -- often far enough
+    up and to the right that the title bar is unreachable. Must run before
+    any window is created, so this is called first thing in
+    _launch_desktop_window(), before pywebview/Qt touches anything."""
+    if sys.platform != "win32":
+        return
+    import ctypes
+    try:
+        ctypes.windll.shcore.SetProcessDpiAwareness(2)  # PROCESS_PER_MONITOR_DPI_AWARE
+    except (AttributeError, OSError):
+        try:
+            ctypes.windll.user32.SetProcessDPIAware()  # Vista+ fallback: system DPI only
+        except (AttributeError, OSError):
+            pass
+
+
 def _launch_desktop_window():
     """Normal entry point: spawn a private Streamlit server (by
     re-invoking this executable with the sentinel flag) and point a native
     pywebview window at it."""
+    _set_windows_dpi_awareness()
+
     port = _free_port()
     url = f"http://127.0.0.1:{port}"
 
