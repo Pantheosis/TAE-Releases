@@ -12,7 +12,7 @@
 # --hidden-import / --collect-all entries by trial and error.)
 
 import sys
-from PyInstaller.utils.hooks import collect_all, collect_data_files, collect_submodules
+from PyInstaller.utils.hooks import collect_all, collect_submodules
 
 block_cipher = None
 
@@ -38,7 +38,7 @@ hiddenimports = []
 # the PyPI package name. This went unnoticed for a while because every
 # earlier build crashed (on pywebview issues) before app.py ever got far
 # enough to actually execute `import swisseph`.
-collect_pkgs = ["streamlit", "altair", "pandas", "swisseph", "timezonefinder", "geopy", "certifi", "pytz", "webview"]
+collect_pkgs = ["streamlit", "altair", "pandas", "swisseph", "timezonefinder", "pytz", "webview"]
 if sys.platform == "win32":
     # pywebview's Qt backend on Windows needs PySide6 (which bundles its own
     # complete Chromium build via QtWebEngine -- no external runtime to
@@ -65,14 +65,11 @@ hiddenimports += collect_submodules("webview")
 # PyInstaller's binary-dependency resolution picks it up.
 hiddenimports += ["swisseph"]
 
-# Belt-and-suspenders: certifi's CA bundle is required for geopy's HTTPS
-# calls to Nominatim to verify certificates correctly inside a frozen build.
-datas += collect_data_files("certifi")
-
 # app.py is loaded at runtime via _resource_path("app.py") in the launcher,
 # not imported as a module -- bundle it as a plain data file alongside the
-# executable rather than analyzing it as code.
-datas += [("app.py", ".")]
+# executable rather than analyzing it as code. atlas.db is the offline
+# GeoNames lookup database queried in place of a network geocoding API.
+datas += [("app.py", "."), ("atlas.db", ".")]
 
 a = Analysis(
     ["desktop_launcher.py"],

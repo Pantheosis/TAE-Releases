@@ -3,12 +3,12 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime, timezone, time, timedelta
 from itertools import combinations
-from geopy.geocoders import Nominatim
 from timezonefinder import TimezoneFinder
 import pytz
 from pathlib import Path
 import math
 import json
+import sqlite3
 
 # ==========================================
 # 0. SAVED CHART PERSISTENCE
@@ -1114,7 +1114,55 @@ except ValueError:
     st.stop()
 
 input_time = st.sidebar.time_input("Local Time", time(14, 30), key="time_input_key")
-location_query = st.sidebar.text_input("Location", "Florence, Italy", key="location_input_key")
+
+st.sidebar.markdown("---")
+st.sidebar.header("Location Data")
+
+manual_coords = st.sidebar.checkbox("Manual Coordinate Entry")
+
+if manual_coords:
+    lat = st.sidebar.number_input("Latitude", value=43.7698, format="%.4f")
+    lon = st.sidebar.number_input("Longitude", value=11.2556, format="%.4f")
+    location_query = f"Manual [{lat:.4f}, {lon:.4f}]"
+else:
+    default_loc = st.session_state.get('location_input_key', 'Florence')
+    city_search = st.sidebar.text_input("City Search", default_loc, key="location_input_key")
+
+    if city_search:
+        db_path = Path(__file__).parent / "atlas.db"
+        if db_path.exists():
+            with sqlite3.connect(db_path) as conn:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    SELECT name, admin1, country, lat, lon
+                    FROM cities
+                    WHERE name LIKE ? COLLATE NOCASE OR ascii_name LIKE ? COLLATE NOCASE
+                    ORDER BY population DESC
+                    LIMIT 20
+                """, (city_search + '%', city_search + '%'))
+                matches = cursor.fetchall()
+
+            if matches:
+                options = {}
+                for m in matches:
+                    # Format: City, State/Admin (Country Code)
+                    label = f"{m[0]}, {m[1]} ({m[2]})"
+                    # Deduplicate identical names in the same region
+                    if label in options:
+                        label += f" [{m[3]:.4f}, {m[4]:.4f}]"
+                    options[label] = (m[3], m[4])
+
+                selected_label = st.sidebar.selectbox("Select specific location:", list(options.keys()))
+                lat, lon = options[selected_label]
+                location_query = selected_label
+            else:
+                st.sidebar.warning("No matches found in offline atlas.")
+                lat, lon, location_query = None, None, None
+        else:
+            st.sidebar.error("`atlas.db` not found. Please ensure it is in the root directory.")
+            lat, lon, location_query = None, None, None
+    else:
+        lat, lon, location_query = None, None, None
 
 new_chart_name = st.sidebar.text_input("Chart Name (for saving)", value="", placeholder="e.g. Test Chart 1240")
 if st.sidebar.button("\U0001F4BE Save This Chart"):
@@ -1141,168 +1189,161 @@ except ValueError:
     st.sidebar.error("Invalid Target Date syntax.")
     st.stop()
 
-if location_query:
-    geolocator = Nominatim(user_agent="almuten_engine_local")
-    location = geolocator.geocode(location_query)
+if location_query and lat is not None and lon is not None:
+    st.sidebar.success(f"**Resolved:** {lat:.4f}, {lon:.4f}")
+
+    tf = TimezoneFinder()
+    tz_name = tf.timezone_at(lng=lon, lat=lat)
     
-    if location:
-        lat, lon = location.latitude, location.longitude
-        st.sidebar.success(f"**Resolved:** {lat:.4f}, {lon:.4f}")
+    if tz_name:
+        local_tz = pytz.timezone(tz_name)
+        local_dt = datetime.combine(input_date, input_time)
+        localized_dt = local_tz.localize(local_dt)
+        dt_utc = localized_dt.astimezone(pytz.utc)
         
-        tf = TimezoneFinder()
-        tz_name = tf.timezone_at(lng=lon, lat=lat)
+        st.sidebar.info(f"**Timezone:** {tz_name}\n**UTC Offset:** {dt_utc.strftime('%H:%M:%S')} UTC")
         
-        if tz_name:
-            local_tz = pytz.timezone(tz_name)
-            local_dt = datetime.combine(input_date, input_time)
-            localized_dt = local_tz.localize(local_dt)
-            dt_utc = localized_dt.astimezone(pytz.utc)
-            
-            st.sidebar.info(f"**Timezone:** {tz_name}\n**UTC Offset:** {dt_utc.strftime('%H:%M:%S')} UTC")
-            
-            chart_data = calculate_traditional_chart(dt_utc, lat, lon)
-            p_data = chart_data['planetary_data']
-            sect = chart_data['sect']
+        chart_data = calculate_traditional_chart(dt_utc, lat, lon)
+        p_data = chart_data['planetary_data']
+        sect = chart_data['sect']
 
-            essential = evaluate_essential_dignities(p_data, sect)
-            accidental = evaluate_accidental_dignities(p_data, chart_data['houses'], sect)
-            aspects = evaluate_ptolemaic_aspects(p_data)
-            syzygy = calculate_prenatal_syzygy(chart_data['julian_day'], lat, lon, chart_data['houses'])
-            chronocrats = calculate_chronocrats(chart_data['julian_day'], lat, lon, local_dt)
-            classical_lots = calculate_classical_lots(chart_data['ascendant'], p_data['Sun']['longitude'], p_data['Moon']['longitude'], sect)
-            special_degrees = evaluate_special_degrees(p_data)
-            house_lords_data = evaluate_house_lords(p_data, chart_data['ascendant'])
-            planets_in_houses_data = evaluate_planets_in_houses(p_data, essential, accidental, chart_data['ascendant'])
-            time_lords_data = calculate_time_lords(chart_data['ascendant'], input_date, target_date)
+        essential = evaluate_essential_dignities(p_data, sect)
+        accidental = evaluate_accidental_dignities(p_data, chart_data['houses'], sect)
+        aspects = evaluate_ptolemaic_aspects(p_data)
+        syzygy = calculate_prenatal_syzygy(chart_data['julian_day'], lat, lon, chart_data['houses'])
+        chronocrats = calculate_chronocrats(chart_data['julian_day'], lat, lon, local_dt)
+        classical_lots = calculate_classical_lots(chart_data['ascendant'], p_data['Sun']['longitude'], p_data['Moon']['longitude'], sect)
+        special_degrees = evaluate_special_degrees(p_data)
+        house_lords_data = evaluate_house_lords(p_data, chart_data['ascendant'])
+        planets_in_houses_data = evaluate_planets_in_houses(p_data, essential, accidental, chart_data['ascendant'])
+        time_lords_data = calculate_time_lords(chart_data['ascendant'], input_date, target_date)
 
-            svg_code = generate_hybrid_svg(chart_data, location_query, lat, lon, local_dt, tz_name)
+        svg_code = generate_hybrid_svg(chart_data, location_query, lat, lon, local_dt, tz_name)
 
-            st.title("Traditional Astrological Engine")
+        st.title("Traditional Astrological Engine")
 
-            tab_wheel, tab_metrics = st.tabs(["Chart Wheel (WSH)", "Tables & Metrics"])
+        tab_wheel, tab_metrics = st.tabs(["Chart Wheel (WSH)", "Tables & Metrics"])
 
-            with tab_wheel:
-                st.components.v1.html(svg_code, height=720, scrolling=True)
+        with tab_wheel:
+            st.components.v1.html(svg_code, height=720, scrolling=True)
 
-            with tab_metrics:
-                hdr1, hdr2, hdr3, hdr4 = st.columns(4)
-                hdr1.metric("Calculated JD", f"{chart_data['julian_day']:.4f}")
-                hdr2.metric("Sect", sect)
-                hdr3.metric("Lord of the Day", chronocrats['Day Lord'])
-                hdr4.metric("Lord of the Hour", chronocrats['Hour Lord'])
-                if chronocrats.get('Approximate'):
-                    st.caption(
-                        "\u26a0\ufe0f No sunrise/sunset exists for this date at this location (circumpolar "
-                        "day/night) — Day and Hour Lord fall back to the plain calendar weekday and an "
-                        "equal 2-hour division of the day, rather than true unequal temporal hours."
-                    )
+        with tab_metrics:
+            hdr1, hdr2, hdr3, hdr4 = st.columns(4)
+            hdr1.metric("Calculated JD", f"{chart_data['julian_day']:.4f}")
+            hdr2.metric("Sect", sect)
+            hdr3.metric("Lord of the Day", chronocrats['Day Lord'])
+            hdr4.metric("Lord of the Hour", chronocrats['Hour Lord'])
+            if chronocrats.get('Approximate'):
+                st.caption(
+                    "\u26a0\ufe0f No sunrise/sunset exists for this date at this location (circumpolar "
+                    "day/night) — Day and Hour Lord fall back to the plain calendar weekday and an "
+                    "equal 2-hour division of the day, rather than true unequal temporal hours."
+                )
 
-                st.subheader("Chronocrator Matrix (Active Time Lords)")
-                st.dataframe(pd.DataFrame(time_lords_data), hide_index=True, width='stretch')
+            st.subheader("Chronocrator Matrix (Active Time Lords)")
+            st.dataframe(pd.DataFrame(time_lords_data), hide_index=True, width='stretch')
 
-                col1, col2 = st.columns(2)
+            col1, col2 = st.columns(2)
 
-                with col1:
-                    st.subheader("Planetary Positions")
-                    # True planets only — angles, nodes, and Lot of Fortune
-                    # now live in the "Calculated Points" table alongside it.
-                    pos_list = [{"Planet": p, "Position": get_degree_string(d['longitude'])} for p, d in p_data.items() if p != 'North Node']
-                    st.dataframe(pd.DataFrame(pos_list), hide_index=True, width='stretch')
+            with col1:
+                st.subheader("Planetary Positions")
+                # True planets only — angles, nodes, and Lot of Fortune
+                # now live in the "Calculated Points" table alongside it.
+                pos_list = [{"Planet": p, "Position": get_degree_string(d['longitude'])} for p, d in p_data.items() if p != 'North Node']
+                st.dataframe(pd.DataFrame(pos_list), hide_index=True, width='stretch')
 
-                    st.subheader("Calculated Points")
-                    north_node_lon = p_data['North Node']['longitude']
-                    south_node_lon = (north_node_lon + 180.0) % 360.0
-                    calculated_points = {
-                        'Ascendant': chart_data['ascendant'],
-                        'Midheaven': chart_data['mc'],
-                        'Descendant': chart_data['descendant'],
-                        'Imum Coeli': chart_data['ic'],
-                        'North Node': north_node_lon,
-                        'South Node': south_node_lon,
-                        'Lot of Fortune': chart_data['lot_of_fortune'],
-                    }
-                    calc_list = [{"Point": name, "Position": get_degree_string(lon_val)} for name, lon_val in calculated_points.items()]
-                    st.dataframe(pd.DataFrame(calc_list), hide_index=True, width='stretch')
+                st.subheader("Calculated Points")
+                north_node_lon = p_data['North Node']['longitude']
+                south_node_lon = (north_node_lon + 180.0) % 360.0
+                calculated_points = {
+                    'Ascendant': chart_data['ascendant'],
+                    'Midheaven': chart_data['mc'],
+                    'Descendant': chart_data['descendant'],
+                    'Imum Coeli': chart_data['ic'],
+                    'North Node': north_node_lon,
+                    'South Node': south_node_lon,
+                    'Lot of Fortune': chart_data['lot_of_fortune'],
+                }
+                calc_list = [{"Point": name, "Position": get_degree_string(lon_val)} for name, lon_val in calculated_points.items()]
+                st.dataframe(pd.DataFrame(calc_list), hide_index=True, width='stretch')
 
-                    st.subheader("Classical Lots")
-                    st.dataframe(pd.DataFrame(classical_lots), hide_index=True, width='stretch')
+                st.subheader("Classical Lots")
+                st.dataframe(pd.DataFrame(classical_lots), hide_index=True, width='stretch')
 
-                    st.subheader("House Cusps (Alchabitius)")
-                    house_list = [{"House": i+1, "Alchabitius Cusp": get_degree_string(chart_data['houses'][i])} for i in range(12)]
-                    st.dataframe(pd.DataFrame(house_list), hide_index=True, width='stretch')
+                st.subheader("House Cusps (Alchabitius)")
+                house_list = [{"House": i+1, "Alchabitius Cusp": get_degree_string(chart_data['houses'][i])} for i in range(12)]
+                st.dataframe(pd.DataFrame(house_list), hide_index=True, width='stretch')
 
-                with col2:
-                    st.subheader("Planetary Dignity Evaluation")
-                    dignity_list = []
-                    for p in essential.keys():
-                        ess = essential[p]
-                        acc = accidental[p]
+            with col2:
+                st.subheader("Planetary Dignity Evaluation")
+                dignity_list = []
+                for p in essential.keys():
+                    ess = essential[p]
+                    acc = accidental[p]
 
-                        dignity_list.append({
-                            "Planet": p,
-                            "Net": ess['Essential Score'] + acc['Accidental Score'],
-                            "Ess": ess['Essential Score'],
-                            "Acc": acc['Accidental Score'],
-                            "Essential Dignities": ", ".join(ess['Essential Labels']) if ess['Essential Labels'] else "-",
-                            "Accidental Conditions": ", ".join(acc['Accidental Labels']) if acc['Accidental Labels'] else "-",
-                        })
+                    dignity_list.append({
+                        "Planet": p,
+                        "Net": ess['Essential Score'] + acc['Accidental Score'],
+                        "Ess": ess['Essential Score'],
+                        "Acc": acc['Accidental Score'],
+                        "Essential Dignities": ", ".join(ess['Essential Labels']) if ess['Essential Labels'] else "-",
+                        "Accidental Conditions": ", ".join(acc['Accidental Labels']) if acc['Accidental Labels'] else "-",
+                    })
 
-                    df_dignity = pd.DataFrame(dignity_list).sort_values(by="Net", ascending=False)
-                    st.dataframe(df_dignity, hide_index=True, width='stretch')
+                df_dignity = pd.DataFrame(dignity_list).sort_values(by="Net", ascending=False)
+                st.dataframe(df_dignity, hide_index=True, width='stretch')
 
-                    st.subheader("Lordship Mapping")
-                    triplicity_key = 'triplicity_day' if sect == 'Diurnal' else 'triplicity_night'
-                    lordship_list = []
-                    for p, data in p_data.items():
-                        if p == 'North Node': continue
-                        rulers = get_essential_rulers(data['longitude'])
-                        lordship_list.append({
-                            "Planet": p,
-                            "Sign Dispositor": rulers['domicile'],
-                            "Exaltation Lord": rulers['exaltation'],
-                            "Triplicity Lord": rulers[triplicity_key],
-                            "Term Lord": rulers['term'],
-                            "Face Lord": rulers['face'],
-                        })
-                    st.dataframe(pd.DataFrame(lordship_list), hide_index=True, width='stretch')
+                st.subheader("Lordship Mapping")
+                triplicity_key = 'triplicity_day' if sect == 'Diurnal' else 'triplicity_night'
+                lordship_list = []
+                for p, data in p_data.items():
+                    if p == 'North Node': continue
+                    rulers = get_essential_rulers(data['longitude'])
+                    lordship_list.append({
+                        "Planet": p,
+                        "Sign Dispositor": rulers['domicile'],
+                        "Exaltation Lord": rulers['exaltation'],
+                        "Triplicity Lord": rulers[triplicity_key],
+                        "Term Lord": rulers['term'],
+                        "Face Lord": rulers['face'],
+                    })
+                st.dataframe(pd.DataFrame(lordship_list), hide_index=True, width='stretch')
 
-                    st.subheader("Prenatal Lunation (Syzygy)")
-                    r = syzygy['rulers']
-                    triplicity_str = (
-                        f"{syzygy['active_triplicity_lord']}\u2605 ({syzygy['active_triplicity_label']}) \u00b7 "
-                        f"Day: {r['triplicity_day']} \u00b7 Night: {r['triplicity_night']} \u00b7 Part: {r['triplicity_participating']}"
-                    )
-                    syzygy_rows = [
-                        {"Metric": "Event Type", "Value": syzygy['event_label']},
-                        {"Metric": "Position", "Value": get_degree_string(syzygy['syzygy_longitude'])},
-                        {"Metric": "Natal House", "Value": f"House {syzygy['natal_house']}"},
-                        {"Metric": "Domicile Lord", "Value": r['domicile']},
-                        {"Metric": "Exaltation Lord", "Value": r['exaltation']},
-                        {"Metric": "Triplicity Lords", "Value": triplicity_str},
-                        {"Metric": "Term Lord", "Value": r['term']},
-                        {"Metric": "Face Lord", "Value": r['face']},
-                        {"Metric": "Syzygy Lord (Almuten)", "Value": f"{syzygy['almuten']} (Score: {syzygy['almuten_score']})"},
-                    ]
-                    st.dataframe(pd.DataFrame(syzygy_rows), hide_index=True, width='stretch')
+                st.subheader("Prenatal Lunation (Syzygy)")
+                r = syzygy['rulers']
+                triplicity_str = (
+                    f"{syzygy['active_triplicity_lord']}\u2605 ({syzygy['active_triplicity_label']}) \u00b7 "
+                    f"Day: {r['triplicity_day']} \u00b7 Night: {r['triplicity_night']} \u00b7 Part: {r['triplicity_participating']}"
+                )
+                syzygy_rows = [
+                    {"Metric": "Event Type", "Value": syzygy['event_label']},
+                    {"Metric": "Position", "Value": get_degree_string(syzygy['syzygy_longitude'])},
+                    {"Metric": "Natal House", "Value": f"House {syzygy['natal_house']}"},
+                    {"Metric": "Domicile Lord", "Value": r['domicile']},
+                    {"Metric": "Exaltation Lord", "Value": r['exaltation']},
+                    {"Metric": "Triplicity Lords", "Value": triplicity_str},
+                    {"Metric": "Term Lord", "Value": r['term']},
+                    {"Metric": "Face Lord", "Value": r['face']},
+                    {"Metric": "Syzygy Lord (Almuten)", "Value": f"{syzygy['almuten']} (Score: {syzygy['almuten_score']})"},
+                ]
+                st.dataframe(pd.DataFrame(syzygy_rows), hide_index=True, width='stretch')
 
-                st.subheader("Special Degrees & Conditions")
-                if special_degrees:
-                    st.dataframe(pd.DataFrame(special_degrees), hide_index=True, width='stretch')
-                else:
-                    st.write("No planets in anomalous degrees.")
+            st.subheader("Special Degrees & Conditions")
+            if special_degrees:
+                st.dataframe(pd.DataFrame(special_degrees), hide_index=True, width='stretch')
+            else:
+                st.write("No planets in anomalous degrees.")
 
-                st.subheader("Topical Planets in Houses (Rhetorius & PN4)")
-                st.dataframe(pd.DataFrame(planets_in_houses_data), hide_index=True, width='stretch')
+            st.subheader("Topical Planets in Houses (Rhetorius & PN4)")
+            st.dataframe(pd.DataFrame(planets_in_houses_data), hide_index=True, width='stretch')
 
-                st.subheader("Ptolemaic Aspects")
-                if aspects:
-                    st.dataframe(pd.DataFrame(aspects), hide_index=True, width='stretch')
-                else:
-                    st.write("No traditional aspects formed within defined orbs.")
+            st.subheader("Ptolemaic Aspects")
+            if aspects:
+                st.dataframe(pd.DataFrame(aspects), hide_index=True, width='stretch')
+            else:
+                st.write("No traditional aspects formed within defined orbs.")
 
-                st.subheader("Topical House Lords (Masha'allah)")
-                st.dataframe(pd.DataFrame(house_lords_data), hide_index=True, width='stretch')
-        else:
-            st.sidebar.error("Timezone boundary not found for coordinates.")
+            st.subheader("Topical House Lords (Masha'allah)")
+            st.dataframe(pd.DataFrame(house_lords_data), hide_index=True, width='stretch')
     else:
-        st.sidebar.error("Location string unrecognized.")
+        st.sidebar.error("Timezone boundary not found for coordinates.")

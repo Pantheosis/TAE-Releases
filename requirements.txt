@@ -4,6 +4,5 @@ PySide6; sys_platform == "win32"
 qtpy; sys_platform == "win32"
 pyswisseph
 pandas
-geopy
 timezonefinder
 pytz
