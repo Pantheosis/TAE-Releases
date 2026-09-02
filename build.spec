@@ -32,7 +32,13 @@ hiddenimports = []
 # falling through to the broken legacy WinForms/IE renderer even after
 # explicitly forcing gui="edgechromium" in desktop_launcher.py: the
 # edgechromium backend module itself wasn't present to import.
-collect_pkgs = ["streamlit", "altair", "pyswisseph", "timezonefinder", "geopy", "certifi", "pytz", "webview"]
+# NOTE: pyswisseph's PyPI distribution name and its actual import name
+# ("swisseph") differ -- listing "pyswisseph" here silently collects
+# nothing, since collect_all() operates on the importable module name, not
+# the PyPI package name. This went unnoticed for a while because every
+# earlier build crashed (on pywebview issues) before app.py ever got far
+# enough to actually execute `import swisseph`.
+collect_pkgs = ["streamlit", "altair", "pandas", "swisseph", "timezonefinder", "geopy", "certifi", "pytz", "webview"]
 if sys.platform == "win32":
     # pywebview's Qt backend on Windows needs PySide6 (which bundles its own
     # complete Chromium build via QtWebEngine -- no external runtime to
@@ -53,6 +59,11 @@ for pkg in collect_pkgs:
 # force in every submodule of webview by name, matching the exact fix
 # used by other pywebview+PyInstaller projects that hit this same issue.
 hiddenimports += collect_submodules("webview")
+
+# Belt-and-suspenders for swisseph too: it's a single compiled C-extension
+# file with no submodule structure, so this just directly confirms
+# PyInstaller's binary-dependency resolution picks it up.
+hiddenimports += ["swisseph"]
 
 # Belt-and-suspenders: certifi's CA bundle is required for geopy's HTTPS
 # calls to Nominatim to verify certificates correctly inside a frozen build.
