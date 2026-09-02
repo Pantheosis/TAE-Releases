@@ -118,10 +118,70 @@ def _self_invoke_command(port: str) -> list:
     return [sys.executable, os.path.abspath(__file__), _SERVER_SENTINEL, port]
 
 
+def _set_windows_dpi_awareness():
+    """Tell Windows this process handles its own per-monitor DPI scaling.
+
+    Without this, an unaware process gets DPI-virtualized by Windows: it
+    thinks it's drawing at the requested size/position, but Windows silently
+    bitmap-scales the actual window to compensate for display scaling. The
+    visible symptom is a window that renders larger than the screen and
+    offset away from where Qt's own centering logic (platforms/qt.py, which
+    positions purely from QScreen geometry) placed it -- often far enough
+    up and to the right that the title bar is unreachable. Must run before
+    any window is created, so this is called first thing in
+    _launch_desktop_window(), before pywebview/Qt touches anything."""
+    if sys.platform != "win32":
+        return
+    import ctypes
+    try:
+        ctypes.windll.shcore.SetProcessDpiAwareness(2)  # PROCESS_PER_MONITOR_DPI_AWARE
+    except (AttributeError, OSError):
+        try:
+            ctypes.windll.user32.SetProcessDPIAware()  # Vista+ fallback: system DPI only
+        except (AttributeError, OSError):
+            pass
+
+
+def _fit_window_to_screen(window):
+    """Re-size/re-center the window against the real detected screen,
+    rather than trusting the hardcoded WINDOW_SIZE default and pywebview's
+    own centering -- both of which assume the screen is at least as big as
+    the requested window. That assumption breaks down at high DPI scale
+    factors: window sizing/positioning all operates in DPI-independent
+    ("logical") pixels, and logical screen resolution shrinks as the scale
+    factor climbs -- e.g. a 3840x2400 panel at 300% scaling has only
+    ~1280x800 logical pixels to lay out in, well under the 1400x900
+    default. That alone explains an oversized window; on top of it, once
+    the requested size exceeds the real screen, pywebview's own
+    self.screen.center() - self.rect().center() centering math (in
+    pywebview's platforms/qt.py) goes askew too, which is consistent with
+    reports of the window landing in a corner instead of centered even at
+    a scale factor where the size itself came out fine.
+
+    Runs as webview.start()'s func= callback, which pywebview invokes on a
+    background thread once the event loop -- and with it, the real Qt
+    backend and its screen info -- is actually up. window.resize()/.move()
+    are both decorated to block until the window's 'shown' event fires, so
+    this only ever runs once there's a real window to measure against."""
+    try:
+        screen = webview.screens[0]
+        margin = 0.9  # leave a little breathing room, not edge-to-edge
+        width = max(WINDOW_MIN_SIZE[0], min(WINDOW_SIZE[0], int(screen.width * margin)))
+        height = max(WINDOW_MIN_SIZE[1], min(WINDOW_SIZE[1], int(screen.height * margin)))
+        x = screen.x + (screen.width - width) // 2
+        y = screen.y + (screen.height - height) // 2
+        window.resize(width, height)
+        window.move(x, y)
+    except Exception:
+        logging.exception("Failed to fit window to detected screen size")
+
+
 def _launch_desktop_window():
     """Normal entry point: spawn a private Streamlit server (by
     re-invoking this executable with the sentinel flag) and point a native
     pywebview window at it."""
+    _set_windows_dpi_awareness()
+
     port = _free_port()
     url = f"http://127.0.0.1:{port}"
 
@@ -171,7 +231,7 @@ def _launch_desktop_window():
     except OSError:
         pass  # if the directory isn't writable, proceed without a log file
 
-    webview.create_window(
+    window = webview.create_window(
         APP_TITLE, url,
         width=WINDOW_SIZE[0], height=WINDOW_SIZE[1],
         min_size=WINDOW_MIN_SIZE,
@@ -207,7 +267,7 @@ def _launch_desktop_window():
     # complete Chromium build in the pip wheel itself -- no external
     # runtime to install, detect, or bundle separately.
     gui_backend = "qt" if sys.platform == "win32" else None
-    webview.start(gui=gui_backend, icon=icon_path)
+    webview.start(_fit_window_to_screen, window, gui=gui_backend, icon=icon_path)
 
     # Window closed -> tear down the server subprocess.
     proc.terminate()

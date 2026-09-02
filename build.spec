@@ -97,6 +97,43 @@ a = Analysis(
 
 pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
 
+# Declares Per-Monitor-V2 DPI awareness in the .exe's embedded manifest,
+# which Windows reads at process-creation time -- before a single line of
+# Python runs. That sidesteps the reliability problem with the runtime
+# alternative (ctypes.windll.shcore.SetProcessDpiAwareness() in
+# desktop_launcher.py, kept as a defensive fallback): that call only takes
+# effect if it runs before the *first* GDI/window-related Win32 call
+# anywhere in the process, and nothing guarantees Python/PyInstaller's own
+# startup hasn't already made one. Without either, Windows DPI-virtualizes
+# an unaware process -- bitmap-scaling its window to compensate for display
+# scaling while it still thinks it drew at the requested size/position --
+# which is what made the window open oversized and shifted off-screen.
+# Includes the common-controls dependency PyInstaller's own default
+# manifest normally carries, so native controls keep the modern Windows
+# theme instead of falling back to unthemed Windows Classic controls.
+WINDOWS_MANIFEST = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<assembly xmlns="urn:schemas-microsoft-com:asm.v1" manifestVersion="1.0">
+  <trustInfo xmlns="urn:schemas-microsoft-com:asm.v3">
+    <security>
+      <requestedPrivileges>
+        <requestedExecutionLevel level="asInvoker" uiAccess="false"/>
+      </requestedPrivileges>
+    </security>
+  </trustInfo>
+  <dependency>
+    <dependentAssembly>
+      <assemblyIdentity type="win32" name="Microsoft.Windows.Common-Controls" version="6.0.0.0" processorArchitecture="*" publicKeyToken="6595b64144ccf1df" language="*"/>
+    </dependentAssembly>
+  </dependency>
+  <application xmlns="urn:schemas-microsoft-com:asm.v3">
+    <windowsSettings>
+      <dpiAwareness xmlns="http://schemas.microsoft.com/SMI/2016/WindowsSettings">PerMonitorV2</dpiAwareness>
+      <dpiAware xmlns="http://schemas.microsoft.com/SMI/2005/WindowsSettings">true/PM</dpiAware>
+    </windowsSettings>
+  </application>
+</assembly>
+""" if sys.platform == "win32" else None
+
 exe = EXE(
     pyz,
     a.scripts,
@@ -108,6 +145,7 @@ exe = EXE(
     upx=False,      # UPX compression trips some antivirus heuristics; leave off
     console=False,  # set True temporarily if you need to see startup errors
     icon="app_icon.ico",  # Windows .exe icon (Explorer, taskbar, alt-tab)
+    manifest=WINDOWS_MANIFEST,
 )
 
 coll = COLLECT(
