@@ -1124,7 +1124,29 @@ def _apply_selected_chart():
                 st.session_state["time_input_key"] = time(h, m, s)
             except (ValueError, KeyError):
                 pass
-        if "location_query" in entry:
+        if entry.get("lat") is not None and entry.get("lon") is not None:
+            # Restore via Manual Coordinate Entry, using the saved lat/lon
+            # directly, rather than re-running a City Search text query --
+            # which would receive the already-resolved display label (e.g.
+            # "Petoskey, MI (US)") as its search term and reliably match
+            # nothing, since city names in atlas.db don't include the
+            # ", State (Country)" suffix. This also correctly restores
+            # charts that were originally entered via Manual Coordinate
+            # Entry in the first place, which a location_query of
+            # "Manual [lat, lon]" could never do by re-searching either.
+            st.session_state["manual_coords_key"] = True
+            st.session_state["manual_lat_key"] = entry["lat"]
+            st.session_state["manual_lon_key"] = entry["lon"]
+            st.session_state["loaded_location"] = {
+                "lat": entry["lat"],
+                "lon": entry["lon"],
+                "label": entry.get("location_query", ""),
+            }
+        elif "location_query" in entry:
+            # Saved before lat/lon capture was added -- best effort only,
+            # since atlas.db matching needs a raw city name, not the old
+            # free-text/resolved-label value this field used to hold.
+            st.session_state["manual_coords_key"] = False
             st.session_state["location_input_key"] = entry["location_query"]
 
 chart_options = ["-- New Chart --"] + sorted(st.session_state["saved_charts"].keys())
@@ -1156,12 +1178,24 @@ time_standard = st.sidebar.selectbox(
 st.sidebar.markdown("---")
 st.sidebar.header("Location Data")
 
-manual_coords = st.sidebar.checkbox("Manual Coordinate Entry")
+manual_coords = st.sidebar.checkbox("Manual Coordinate Entry", key="manual_coords_key")
 
 if manual_coords:
-    lat = st.sidebar.number_input("Latitude", value=43.7698, format="%.4f")
-    lon = st.sidebar.number_input("Longitude", value=11.2556, format="%.4f")
-    location_query = f"Manual [{lat:.4f}, {lon:.4f}]"
+    lat = st.sidebar.number_input("Latitude", value=43.7698, format="%.4f", key="manual_lat_key")
+    lon = st.sidebar.number_input("Longitude", value=11.2556, format="%.4f", key="manual_lon_key")
+    # If these coordinates came from loading a saved chart and haven't been
+    # hand-edited since, show the friendly place name it was saved under
+    # instead of a bare coordinate pair.
+    loaded_location = st.session_state.get("loaded_location")
+    if (
+        loaded_location
+        and loaded_location.get("label")
+        and loaded_location["lat"] == lat
+        and loaded_location["lon"] == lon
+    ):
+        location_query = loaded_location["label"]
+    else:
+        location_query = f"Manual [{lat:.4f}, {lon:.4f}]"
 else:
     default_loc = st.session_state.get('location_input_key', 'Florence')
     city_search = st.sidebar.text_input("City Search", default_loc, key="location_input_key")
@@ -1210,6 +1244,8 @@ if st.sidebar.button("\U0001F4BE Save This Chart"):
             "date_string": date_string,
             "time_string": input_time.strftime("%H:%M:%S"),
             "location_query": location_query,
+            "lat": lat,
+            "lon": lon,
         }
         if write_saved_charts(st.session_state["saved_charts"]):
             st.sidebar.success(f"Saved '{trimmed_name}'.")
