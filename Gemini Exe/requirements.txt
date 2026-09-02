@@ -1,8 +1,0 @@
-streamlit
-pywebview
-PySide6
-pyswisseph
-pandas
-geopy
-timezonefinder
-pytz
