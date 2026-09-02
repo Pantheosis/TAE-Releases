@@ -69,7 +69,9 @@ hiddenimports += ["swisseph"]
 # not imported as a module -- bundle it as a plain data file alongside the
 # executable rather than analyzing it as code. atlas.db is the offline
 # GeoNames lookup database queried in place of a network geocoding API.
-datas += [("app.py", "."), ("atlas.db", ".")]
+# app_icon.ico is loaded at runtime via _resource_path("app_icon.ico") for
+# the pywebview window icon, and doubles as the .exe icon below.
+datas += [("app.py", "."), ("atlas.db", "."), ("app_icon.ico", ".")]
 
 a = Analysis(
     ["desktop_launcher.py"],
@@ -96,6 +98,7 @@ exe = EXE(
     strip=False,
     upx=False,      # UPX compression trips some antivirus heuristics; leave off
     console=False,  # set True temporarily if you need to see startup errors
+    icon="app_icon.ico",  # Windows .exe icon (Explorer, taskbar, alt-tab)
 )
 
 coll = COLLECT(

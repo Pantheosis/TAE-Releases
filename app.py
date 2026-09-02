@@ -1070,7 +1070,12 @@ def calculate_time_lords(ascendant_lon, birth_date, target_date):
 # 4. STREAMLIT UI INTEGRATION
 # ==========================================
 
-st.set_page_config(page_title="Traditional Astrology Engine", layout="wide")
+_icon_path = Path(__file__).parent / "app_icon.ico"
+st.set_page_config(
+    page_title="Traditional Astrology Engine",
+    page_icon=str(_icon_path) if _icon_path.exists() else None,
+    layout="wide",
+)
 
 st.sidebar.header("Calculation Parameters")
 

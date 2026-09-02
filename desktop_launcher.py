@@ -177,6 +177,10 @@ def _launch_desktop_window():
         min_size=WINDOW_MIN_SIZE,
     )
 
+    icon_path = _resource_path("app_icon.ico")
+    if not os.path.isfile(icon_path):
+        icon_path = None
+
     if sys.platform == "win32":
         # pywebview's legacy WinForms + Internet Explorer/MSHTML renderer is
         # meant purely as a last-resort fallback -- but on any modern
@@ -203,7 +207,7 @@ def _launch_desktop_window():
     # complete Chromium build in the pip wheel itself -- no external
     # runtime to install, detect, or bundle separately.
     gui_backend = "qt" if sys.platform == "win32" else None
-    webview.start(gui=gui_backend)
+    webview.start(gui=gui_backend, icon=icon_path)
 
     # Window closed -> tear down the server subprocess.
     proc.terminate()
