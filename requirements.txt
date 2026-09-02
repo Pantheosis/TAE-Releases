@@ -1,5 +1,6 @@
 streamlit
 pywebview
+pythonnet; sys_platform == "win32"
 pyswisseph
 pandas
 geopy

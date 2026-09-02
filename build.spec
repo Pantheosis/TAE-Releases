@@ -22,7 +22,15 @@ hiddenimports = []
 
 # These packages ship data files, C extensions, or dynamic imports that
 # static analysis alone won't find -- pull in everything for each.
-for pkg in ["streamlit", "altair", "pyswisseph", "timezonefinder", "geopy", "certifi", "pytz"]:
+collect_pkgs = ["streamlit", "altair", "pyswisseph", "timezonefinder", "geopy", "certifi", "pytz"]
+if sys.platform == "win32":
+    # pywebview's modern EdgeChromium/WebView2 backend on Windows needs
+    # pythonnet (the .NET/clr bridge). Without it bundled, pywebview
+    # silently falls back to the legacy WinForms+IE renderer, which then
+    # crashes on its own IE-compatibility-mode registry lookup.
+    collect_pkgs += ["pythonnet", "clr_loader"]
+
+for pkg in collect_pkgs:
     d, b, h = collect_all(pkg)
     datas += d
     binaries += b

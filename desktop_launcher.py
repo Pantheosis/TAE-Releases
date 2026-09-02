@@ -160,7 +160,15 @@ def _launch_desktop_window():
         width=WINDOW_SIZE[0], height=WINDOW_SIZE[1],
         min_size=WINDOW_MIN_SIZE,
     )
-    webview.start()
+    # Force the modern EdgeChromium (WebView2) backend on Windows. Left to
+    # its own auto-detection, pywebview will silently fall back to the
+    # legacy WinForms + Internet Explorer renderer if EdgeChromium isn't
+    # available (e.g. the pythonnet dependency is missing) -- and that
+    # legacy fallback then crashes on its own IE-compatibility-mode lookup
+    # with a confusing, deeply-nested WinError 2. Forcing the backend here
+    # means a missing dependency raises a clear, immediate error instead.
+    gui_backend = "edgechromium" if sys.platform == "win32" else None
+    webview.start(gui=gui_backend)
 
     # Window closed -> tear down the server subprocess.
     proc.terminate()
