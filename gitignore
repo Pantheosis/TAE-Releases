@@ -1,0 +1,18 @@
+# Python
+.venv/
+venv/
+__pycache__/
+*.pyc
+
+# PyInstaller build output (CI regenerates these -- don't commit them)
+build/
+dist/
+*.spec.bak
+
+# Personal saved-chart data (generated at runtime, not project source)
+saved_charts.json
+
+# Editor/OS cruft
+.DS_Store
+.idea/
+.vscode/

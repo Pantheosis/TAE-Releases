@@ -1,0 +1,50 @@
+name: Build Desktop App
+
+# Runs on every push to main, and can also be triggered manually from the
+# Actions tab (workflow_dispatch) without needing a push.
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false   # if the Windows build fails, still let macOS finish
+      matrix:
+        os: [windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install pyinstaller pyinstaller-hooks-contrib
+
+      - name: Build with PyInstaller
+        run: pyinstaller build.spec
+
+      - name: Package (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: Compress-Archive -Path dist/TraditionalAstrologyEngine -DestinationPath TraditionalAstrologyEngine-windows.zip
+
+      - name: Package (macOS)
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          cd dist
+          zip -r ../TraditionalAstrologyEngine-macos.zip TraditionalAstrologyEngine.app
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: TraditionalAstrologyEngine-${{ runner.os }}
+          path: TraditionalAstrologyEngine-*.zip
+          retention-days: 30
