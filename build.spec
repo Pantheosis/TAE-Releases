@@ -82,7 +82,16 @@ a = Analysis(
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
-    excludes=[],
+    # collect_submodules("webview") above force-imports every webview.platforms.*
+    # submodule so pywebview's Qt backend -- itself only ever loaded dynamically
+    # by guilib.py -- gets discovered. That net also catches winforms.py,
+    # mshtml.py, and edgechromium.py: pywebview's legacy Windows backends,
+    # superseded by the Qt/PySide6 backend desktop_launcher.py forces on
+    # win32 (the WinForms fallback is explicitly disabled there too). All
+    # three `import clr` at module scope, so pulling them in also drags in
+    # pythonnet -- and its bundled .NET interop DLLs -- purely because that
+    # import statement exists, never because anything here actually runs it.
+    excludes=["webview.platforms.winforms", "webview.platforms.mshtml", "webview.platforms.edgechromium", "pythonnet", "clr", "clr_loader"],
     cipher=block_cipher,
 )
 
