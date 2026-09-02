@@ -29,6 +29,7 @@ import subprocess
 import time
 import threading
 import atexit
+import logging
 
 import webview
 
@@ -155,18 +156,45 @@ def _launch_desktop_window():
             "-------------------------------"
         )
 
+    # Log pywebview's own internal diagnostic messages to a file next to the
+    # executable. With console=False (a windowed build), stdout/stderr
+    # aren't available, so without this, pywebview's logger.exception(...)
+    # calls when a backend fails to load are silently discarded -- leaving
+    # us unable to see WHY, only that something eventually crashed.
+    log_dir = os.path.dirname(sys.executable) if getattr(sys, "frozen", False) else os.path.dirname(os.path.abspath(__file__))
+    try:
+        logging.basicConfig(
+            filename=os.path.join(log_dir, "webview_debug.log"),
+            level=logging.DEBUG,
+            format="%(asctime)s %(name)s %(levelname)s: %(message)s",
+        )
+    except OSError:
+        pass  # if the directory isn't writable, proceed without a log file
+
     webview.create_window(
         APP_TITLE, url,
         width=WINDOW_SIZE[0], height=WINDOW_SIZE[1],
         min_size=WINDOW_MIN_SIZE,
     )
-    # Force the modern EdgeChromium (WebView2) backend on Windows. Left to
-    # its own auto-detection, pywebview will silently fall back to the
-    # legacy WinForms + Internet Explorer renderer if EdgeChromium isn't
-    # available (e.g. the pythonnet dependency is missing) -- and that
-    # legacy fallback then crashes on its own IE-compatibility-mode lookup
-    # with a confusing, deeply-nested WinError 2. Forcing the backend here
-    # means a missing dependency raises a clear, immediate error instead.
+
+    if sys.platform == "win32":
+        # pywebview's legacy WinForms + Internet Explorer/MSHTML renderer is
+        # meant purely as a last-resort fallback -- but on any modern
+        # Windows install with no IE registry traces left (now the norm),
+        # it crashes with an uncaught FileNotFoundError instead of failing
+        # gracefully (pywebview's own probing only catches ImportError
+        # around this, not the OSError this raises). Forcing gui=
+        # "edgechromium" alone does NOT prevent this fallback -- pywebview's
+        # own changelog documents WinForms fallback as intentional even
+        # when a different backend was explicitly requested. Since we
+        # always want the modern EdgeChromium/WebView2 backend anyway,
+        # disable the WinForms candidate entirely: if EdgeChromium also
+        # fails, this now surfaces as a single clean WebViewException
+        # instead of a crash three modules deep, and the real underlying
+        # reason EdgeChromium failed will be in webview_debug.log.
+        import webview.guilib as _guilib
+        _guilib.import_winforms = lambda: False
+
     gui_backend = "edgechromium" if sys.platform == "win32" else None
     webview.start(gui=gui_backend)
 
