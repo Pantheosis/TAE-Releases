@@ -57,3 +57,5 @@ Because these binaries are distributed directly for academic use without third-p
 4. **Terminal Alternative (Power Users):**
    * Strip the Apple quarantine attribute directly:
      `xattr -cr /Applications/TraditionalAstrologyEngine.app`
+
+*Astrological calculations powered by the Swiss Ephemeris. Offline gazetteer data provided by GeoNames under the CC BY 4.0 license.*
