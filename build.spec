@@ -12,7 +12,7 @@
 # --hidden-import / --collect-all entries by trial and error.)
 
 import sys
-from PyInstaller.utils.hooks import collect_all, collect_data_files
+from PyInstaller.utils.hooks import collect_all, collect_data_files, collect_submodules
 
 block_cipher = None
 
@@ -22,7 +22,17 @@ hiddenimports = []
 
 # These packages ship data files, C extensions, or dynamic imports that
 # static analysis alone won't find -- pull in everything for each.
-collect_pkgs = ["streamlit", "altair", "pyswisseph", "timezonefinder", "geopy", "certifi", "pytz"]
+# NOTE: "webview" (pywebview's actual import name -- not the "pywebview"
+# distribution name) was MISSING from this list entirely in earlier
+# versions of this spec. pywebview's platform backends (edgechromium.py,
+# winforms.py, mshtml.py, cocoa.py, etc.) are imported dynamically inside
+# functions in guilib.py, which PyInstaller's static analysis can't see --
+# so without explicitly collecting them, some backends silently never
+# make it into the bundle at all. That's what caused pywebview to keep
+# falling through to the broken legacy WinForms/IE renderer even after
+# explicitly forcing gui="edgechromium" in desktop_launcher.py: the
+# edgechromium backend module itself wasn't present to import.
+collect_pkgs = ["streamlit", "altair", "pyswisseph", "timezonefinder", "geopy", "certifi", "pytz", "webview"]
 if sys.platform == "win32":
     # pywebview's modern EdgeChromium/WebView2 backend on Windows needs
     # pythonnet (the .NET/clr bridge). Without it bundled, pywebview
@@ -35,6 +45,13 @@ for pkg in collect_pkgs:
     datas += d
     binaries += b
     hiddenimports += h
+
+# Belt-and-suspenders on top of collect_all("webview") above: explicitly
+# force in every submodule of webview by name, matching the exact fix
+# used by other pywebview+PyInstaller projects that hit this same issue.
+hiddenimports += collect_submodules("webview")
+if sys.platform == "win32":
+    hiddenimports += collect_submodules("clr_loader")
 
 # Belt-and-suspenders: certifi's CA bundle is required for geopy's HTTPS
 # calls to Nominatim to verify certificates correctly inside a frozen build.
@@ -88,5 +105,5 @@ if sys.platform == "darwin":
         coll,
         name="TraditionalAstrologyEngine.app",
         icon=None,  # point this at an .icns file if you have one
-        bundle_identifier="com.yourname.almutenengine",
+        bundle_identifier="com.yourname.traditionalastrologyengine",
     )
