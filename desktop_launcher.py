@@ -142,6 +142,40 @@ def _set_windows_dpi_awareness():
             pass
 
 
+def _fit_window_to_screen(window):
+    """Re-size/re-center the window against the real detected screen,
+    rather than trusting the hardcoded WINDOW_SIZE default and pywebview's
+    own centering -- both of which assume the screen is at least as big as
+    the requested window. That assumption breaks down at high DPI scale
+    factors: window sizing/positioning all operates in DPI-independent
+    ("logical") pixels, and logical screen resolution shrinks as the scale
+    factor climbs -- e.g. a 3840x2400 panel at 300% scaling has only
+    ~1280x800 logical pixels to lay out in, well under the 1400x900
+    default. That alone explains an oversized window; on top of it, once
+    the requested size exceeds the real screen, pywebview's own
+    self.screen.center() - self.rect().center() centering math (in
+    pywebview's platforms/qt.py) goes askew too, which is consistent with
+    reports of the window landing in a corner instead of centered even at
+    a scale factor where the size itself came out fine.
+
+    Runs as webview.start()'s func= callback, which pywebview invokes on a
+    background thread once the event loop -- and with it, the real Qt
+    backend and its screen info -- is actually up. window.resize()/.move()
+    are both decorated to block until the window's 'shown' event fires, so
+    this only ever runs once there's a real window to measure against."""
+    try:
+        screen = webview.screens[0]
+        margin = 0.9  # leave a little breathing room, not edge-to-edge
+        width = max(WINDOW_MIN_SIZE[0], min(WINDOW_SIZE[0], int(screen.width * margin)))
+        height = max(WINDOW_MIN_SIZE[1], min(WINDOW_SIZE[1], int(screen.height * margin)))
+        x = screen.x + (screen.width - width) // 2
+        y = screen.y + (screen.height - height) // 2
+        window.resize(width, height)
+        window.move(x, y)
+    except Exception:
+        logging.exception("Failed to fit window to detected screen size")
+
+
 def _launch_desktop_window():
     """Normal entry point: spawn a private Streamlit server (by
     re-invoking this executable with the sentinel flag) and point a native
@@ -197,7 +231,7 @@ def _launch_desktop_window():
     except OSError:
         pass  # if the directory isn't writable, proceed without a log file
 
-    webview.create_window(
+    window = webview.create_window(
         APP_TITLE, url,
         width=WINDOW_SIZE[0], height=WINDOW_SIZE[1],
         min_size=WINDOW_MIN_SIZE,
@@ -233,7 +267,7 @@ def _launch_desktop_window():
     # complete Chromium build in the pip wheel itself -- no external
     # runtime to install, detect, or bundle separately.
     gui_backend = "qt" if sys.platform == "win32" else None
-    webview.start(gui=gui_backend, icon=icon_path)
+    webview.start(_fit_window_to_screen, window, gui=gui_backend, icon=icon_path)
 
     # Window closed -> tear down the server subprocess.
     proc.terminate()
