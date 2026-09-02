@@ -34,11 +34,10 @@ to a single onefile `EXE(...)` per PyInstaller's docs and drop `COLLECT`.
 ## 3. Platform-specific requirements
 
 ### Windows
-pywebview uses the **Edge WebView2** runtime. It ships pre-installed on
-Windows 10 (recent updates) and Windows 11, so most users are covered with
-zero extra steps. For older/locked-down machines, either point users to
-Microsoft's WebView2 Evergreen Bootstrapper, or bundle the fixed-version
-runtime — see pywebview's docs if you need this covered.
+pywebview uses the **Qt (PySide6/QtWebEngine)** backend, which bundles its
+own Chromium build via the `PySide6` pip package — no external runtime
+dependency like WebView2, no version detection, nothing to install on the
+end user's machine beyond the app itself.
 
 Unsigned `.exe`s trigger a Windows SmartScreen warning ("Windows protected
 your PC"). Users can click **More info → Run anyway**. A proper fix requires
@@ -57,20 +56,19 @@ you're distributing beyond yourself/trusted users.
 
 ## 4. Gotchas specific to this app's dependencies
 
-- **Bundled WebView2 runtime (Windows):** by default, pywebview relies on
-  whatever WebView2 Runtime is already on the end user's system, which
-  ships pre-installed on stock Windows 10/11 but can be missing on
-  debloated/stripped installs, older systems, or locked-down corporate
-  images. If you're distributing to people whose machines you don't
-  control, download Microsoft's "Fixed Version" WebView2 Runtime from
-  https://developer.microsoft.com/en-us/microsoft-edge/webview2/, extract
-  it into a `webview2_runtime/` folder in the project root (`expand -F:*
-  <file>.cab webview2_runtime` on Windows), and both `build.spec` and
-  `desktop_launcher.py` will automatically detect and bundle/use it if
-  present, falling back to the system's own WebView2 if the folder is
-  absent. This adds roughly 150-250MB to the build. Note: fixed-version
-  WebView2 has a documented Microsoft limitation where it won't run if the
-  app is launched from a network location — local disk only.
+- **Windows GUI backend: Qt (PySide6), not WebView2.** Earlier versions of
+  this project used pywebview's EdgeChromium backend, which depends on the
+  Microsoft Edge WebView2 Runtime being present on the end user's machine
+  (usually true on stock Windows 10/11, but not guaranteed — debloated
+  installs, locked-down corporate images, or older systems can be missing
+  it entirely, and there's no way to know in advance whose machine it'll
+  run on). We switched to pywebview's Qt backend instead: `PySide6`
+  bundles its own complete Chromium build (QtWebEngine) directly in the
+  pip wheel, so there's nothing external to detect, download, or bundle
+  separately — `pip install -r requirements.txt` is the whole story.
+  `desktop_launcher.py` forces `gui="qt"` on Windows; macOS keeps using
+  its native Cocoa/WebKit backend, since that already works well there
+  with no equivalent runtime-availability problem.
 - **pyswisseph / ephemeris precision:** `app.py` never calls
   `swe.set_ephe_path()`, so it already falls back to the built-in Moshier
   ephemeris (no external `.se1` files needed). This is arc-second-level
