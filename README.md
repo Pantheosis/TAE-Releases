@@ -1,61 +1,50 @@
-# Traditional Astrology Engine (v1.0.0)
+# Traditional Astrology Engine
 
-An offline, standalone computational workstation engineered for traditional, medieval, and Hellenistic astrological analysis. Built on high-precision Swiss Ephemeris calculations, the engine eliminates external network telemetry and web-engine dependencies to provide immediate, deterministic chart delineation in an air-gapped desktop environment.
+A desktop application for calculating natal charts using traditional, medieval, and Hellenistic methods — essential and accidental dignities, whole-sign topical delineation, classical time-lord techniques, and Ptolemaic aspects — built on the Swiss Ephemeris. Runs as a self-contained desktop app on Windows and macOS with no internet connection required: location lookup uses a bundled offline city database rather than a geocoding API, and there's no telemetry or update-check traffic of any kind.
 
-## Core Utility & Objectives
+## Features
 
-* **Zero-Telemetry Operation:** Native Qt desktop wrapper decoupling the application entirely from remote APIs, OS-level webview runtimes, and background data harvesting.
-* **Historical Chronological Fidelity:** Native mathematical correction for historical Local Mean Time (LMT) based on geographic longitude, preventing standard regional timezone rounding errors across pre-modern eras.
-* **Dual Calculation Layer:** Full simultaneous resolution of Whole Sign Houses alongside Alchabitius Semi-Arc quadrant cusps.
+**Astronomical calculation**
+- Sun through Saturn plus the mean lunar node, via the Swiss Ephemeris
+- Whole Sign houses and Alchabitius (quadrant) house cusps calculated simultaneously
+- Correct Julian/Gregorian calendar handling for dates before the October 1582 reform, so historical charts aren't silently mis-dated
+- Diurnal/nocturnal sect, and day/hour lords (chronocrators) derived from true local sunrise/sunset — falling back to the calendar weekday and equal hour division on dates/latitudes with no sunrise or sunset (circumpolar day/night)
+- Prenatal syzygy (the New or Full Moon preceding birth), with its degree, sect, and almuten
 
-## Functional Capabilities
+**Dignity and delineation**
+- Essential dignity scoring across domicile, exaltation, triplicity (day/night/participating), Egyptian terms, and Chaldean faces
+- Accidental dignity: angularity, planetary joys, hayz, station/retrogradation, and solar phase (cazimi, combustion, under the beams)
+- Via Combusta and welled/pitted degrees (sourced from Abu Ma'shar's *Great Introduction to Astrology*, cross-checked against al-Bīrūnī's *Kitāb al-Tafhīm*)
+- House-ruler placement matrix (Masha'allah) and planets-in-houses delineation (Rhetorius/PN4)
+- Ptolemaic aspects with classical orbs, enforced within whole-sign boundaries, noting application/separation
 
-### 1. Astronomical Calculation & Astrometry
-* **Ephemeris Precision:** Sub-arcsecond calculation of planetary longitudes, diurnal speeds, and lunar nodes.
-* **Solar & Temporal Hour Diagnostics:** Determination of diurnal/nocturnal chart sect and calculation of unequal planetary days and hours derived from true local sunrise and sunset boundaries.
-* **Prenatal Lunation (Syzygy):** Root-searched determination of the preceding conjunctional (New Moon) or preventional (Full Moon) syzygy, calculating its exact zodiacal degree, sect, and almuten.
+**Time lords**
+- Annual profections (Lord of the Year)
+- Ptolemaic distributions through the Egyptian terms (1° per year)
 
-### 2. Classical Dignity & Topical Delineation
-* **5-Fold Essential Dignity Hierarchy:** Automated scoring across Domicile, Exaltation, Dorothean Triplicity (Day/Night/Participating), Egyptian Terms, and Chaldean Faces.
-* **Accidental Dignity Framework:** Evaluation of Whole Sign angularity, planetary joys, Hayz conditions, speed/motion anomalies (retrogradation, stationarity), and precise solar phases (cazimi, combustion, under the beams).
-* **Classical Topical Matrices:** Integrated delineation tables implementing Masha'allah’s house-ruler placement matrix and Rhetorius/PN4 house-occupant condition synthesis.
-* **Ptolemaic Aspect Engine:** Classical orb-based moiety evaluations enforcing strict whole-sign configuration boundaries (prohibiting out-of-sign aspects) while identifying application, separation, and sinister/dexter orientation.
+**Location and chart data**
+- Offline gazetteer (GeoNames `cities500`, population ≥ 500) for coordinate and timezone lookup — no network access
+- Manual latitude/longitude entry for locations not in the database, or for historical/ancient places
+- Local Mean Time as a selectable alternative to modern timezone-based standard time, for dates before timezones existed
+- Save, load, and delete chart configurations locally between sessions
 
-### 3. Chronocrators (Time Lords)
-* **Annual Profections:** Dynamic projection of the Ascendant through Whole Sign boundaries to establish the active *Lord of the Year*.
-* **Distributions Through Bounds:** Degree-per-year progression of the Ascendant degree through the Egyptian Terms to identify the active *Distributor*.
+## Installation
 
-### 4. Data & Chart Management
-* **Embedded Offline Atlas:** Integrated SQLite gazetteer (`cities500`) supporting coordinate and timezone resolution for worldwide locations down to 500 population with zero network access.
-* **Manual Coordinate Override:** Explicit numerical latitude and longitude inputs for unmapped historical, ancient, or rural locations.
-* **Persistent Storage:** Local JSON chart management to save, load, and delete chart configurations across application sessions.
+These binaries aren't signed with a paid code-signing certificate, so Windows and macOS will both show an unfamiliar-publisher warning on first launch. That's expected — follow the steps below to run it anyway.
+
+### Windows (10 / 11)
+
+1. Extract the full contents of `TraditionalAstrologyEngine-Windows.zip` to a folder on disk. Don't run the `.exe` straight out of the zip preview, and don't move it out of its extracted folder afterward.
+2. Double-click `TraditionalAstrologyEngine.exe`.
+3. Windows SmartScreen will show a blue "Windows protected your PC" banner. Click **More info**, then **Run anyway**.
+
+### macOS (Sonoma / Sequoia)
+
+1. Extract `TraditionalAstrologyEngine-macos.zip` and move `TraditionalAstrologyEngine.app` into `/Applications`.
+2. Double-click the app. Gatekeeper will block it with an "unidentified developer" warning — dismiss it.
+3. Open **System Settings → Privacy & Security**, scroll to **Security**, and click **Open Anyway** next to the blocked-app notice. Confirm with **Open**, entering your admin password if prompted.
+4. Alternatively, from a terminal: `xattr -cr /Applications/TraditionalAstrologyEngine.app`
 
 ---
 
-## Installation & Distribution Instructions
-
-Because these binaries are distributed directly for academic use without third-party digital signature certificates, modern operating systems will enforce default execution guards. Follow the platform-specific instructions below to launch the software.
-
-### Windows (10 / 11)
-1. **Extract the Archive:** Extract the entire contents of `TraditionalAstrologyEngine-Windows.zip` to a local folder. 
-   * *Critical:* Do not execute `TraditionalAstrologyEngine.exe` from inside the `.zip` preview window, and do not move the `.exe` away from its bundled directory.
-2. **Launch Application:** Double-click `TraditionalAstrologyEngine.exe`.
-3. **Bypass SmartScreen:**
-   * A blue banner stating **"Windows protected your PC"** will appear.
-   * Click **More info**.
-   * Click the **Run anyway** button at the bottom.
-
-### macOS (Sonoma / Sequoia)
-1. **Extract Archive:** Double-click `TraditionalAstrologyEngine-macos.zip` to extract `TraditionalAstrologyEngine.app`. Move the `.app` into your `/Applications` directory.
-2. **Initial Launch Attempt:** Double-click the app. macOS Gatekeeper will block execution with a warning dialog stating the developer cannot be verified. Click **Done** or **Cancel**.
-3. **Whitelist in System Settings:**
-   * Open **System Settings** -> **Privacy & Security**.
-   * Scroll to the **Security** section near the bottom.
-   * Locate the prompt stating the app was blocked from use.
-   * Click **Open Anyway**.
-   * Click **Open** again to confirm, and enter your macOS administrator password when prompted.
-4. **Terminal Alternative (Power Users):**
-   * Strip the Apple quarantine attribute directly:
-     `xattr -cr /Applications/TraditionalAstrologyEngine.app`
-
-*Astrological calculations powered by the Swiss Ephemeris. Offline gazetteer data provided by GeoNames under the CC BY 4.0 license.*
+Astrological calculations powered by the [Swiss Ephemeris](https://www.astro.com/swisseph/). Offline gazetteer data from [GeoNames](https://www.geonames.org/), licensed under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/).
