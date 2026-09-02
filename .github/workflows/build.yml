@@ -16,9 +16,9 @@ jobs:
     runs-on: ${{ matrix.os }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: '3.12'
 
@@ -30,10 +30,11 @@ jobs:
       - name: Build with PyInstaller
         run: pyinstaller build.spec
 
-      - name: Package (Windows)
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: Compress-Archive -Path dist/TraditionalAstrologyEngine -DestinationPath TraditionalAstrologyEngine-windows.zip
+      # Windows: no manual zip here. actions/upload-artifact already wraps
+      # whatever it's given in its own zip on download -- pre-zipping too
+      # (as this workflow previously did) produced a zip-inside-a-zip.
+      # Pointing it directly at the build folder means downloading gives
+      # you exactly one zip to extract, with the .exe at the top level.
 
       - name: Package (macOS)
         if: runner.os == 'macOS'
@@ -42,9 +43,23 @@ jobs:
           cd dist
           zip -r ../TraditionalAstrologyEngine-macos.zip TraditionalAstrologyEngine.app
 
-      - name: Upload build artifact
-        uses: actions/upload-artifact@v4
+      - name: Upload build artifact (Windows)
+        if: runner.os == 'Windows'
+        uses: actions/upload-artifact@v7
         with:
           name: TraditionalAstrologyEngine-${{ runner.os }}
-          path: TraditionalAstrologyEngine-*.zip
+          path: dist/TraditionalAstrologyEngine/
+          retention-days: 30
+
+      - name: Upload build artifact (macOS)
+        if: runner.os == 'macOS'
+        uses: actions/upload-artifact@v7
+        with:
+          name: TraditionalAstrologyEngine-${{ runner.os }}
+          # Uploaded as an already-zipped file rather than the raw .app --
+          # GitHub's own artifact zipping doesn't reliably preserve the
+          # executable bit and internal symlinks inside a macOS .app bundle,
+          # so this still ends up double-zipped after download, but that's
+          # the standard/accepted tradeoff for Mac specifically.
+          path: TraditionalAstrologyEngine-macos.zip
           retention-days: 30
