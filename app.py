@@ -9,16 +9,42 @@ from pathlib import Path
 import math
 import json
 import sqlite3
+import os
+import sys
 
 # ==========================================
 # 0. SAVED CHART PERSISTENCE
 # ==========================================
 # Charts are saved as {name: {date_string, time_string, location_query}} in a
-# small JSON file next to the script. Only the raw natal inputs are stored —
-# the full chart is cheaply recomputed on load rather than serialized.
-SAVED_CHARTS_PATH = Path(__file__).parent / "saved_charts.json"
+# small JSON file. Only the raw natal inputs are stored -- the full chart is
+# cheaply recomputed on load rather than serialized.
+#
+# This lives in the OS's per-user data directory, NOT next to app.py: a
+# packaged build's own folder (_internal) gets replaced whole by every new
+# download, which used to silently wipe saved charts on every update unless
+# the file was manually copied out and back in first.
+def _user_data_dir() -> Path:
+    if sys.platform == "win32":
+        base = os.environ.get("APPDATA", str(Path.home() / "AppData" / "Roaming"))
+    elif sys.platform == "darwin":
+        base = str(Path.home() / "Library" / "Application Support")
+    else:
+        base = os.environ.get("XDG_DATA_HOME", str(Path.home() / ".local" / "share"))
+    path = Path(base) / "TraditionalAstrologyEngine"
+    path.mkdir(parents=True, exist_ok=True)
+    return path
+
+SAVED_CHARTS_PATH = _user_data_dir() / "saved_charts.json"
+# Where this file used to live -- checked once so anyone upgrading from
+# before this change doesn't have to move it by hand.
+_LEGACY_SAVED_CHARTS_PATH = Path(__file__).parent / "saved_charts.json"
 
 def load_saved_charts():
+    if not SAVED_CHARTS_PATH.exists() and _LEGACY_SAVED_CHARTS_PATH.exists():
+        try:
+            SAVED_CHARTS_PATH.write_text(_LEGACY_SAVED_CHARTS_PATH.read_text())
+        except OSError:
+            pass
     if SAVED_CHARTS_PATH.exists():
         try:
             return json.loads(SAVED_CHARTS_PATH.read_text())
