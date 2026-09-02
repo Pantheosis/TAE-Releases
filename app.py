@@ -1310,7 +1310,7 @@ if location_query and lat is not None and lon is not None:
         tab_wheel, tab_metrics = st.tabs(["Chart Wheel (WSH)", "Tables & Metrics"])
 
         with tab_wheel:
-            st.components.v1.html(svg_code, height=720, scrolling=True)
+            st.iframe(svg_code, height=720)
 
         with tab_metrics:
             hdr1, hdr2, hdr3, hdr4 = st.columns(4)
