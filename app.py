@@ -1115,6 +1115,12 @@ except ValueError:
 
 input_time = st.sidebar.time_input("Local Time", time(14, 30), key="time_input_key")
 
+time_standard = st.sidebar.selectbox(
+    "Time standard",
+    ["LMT (Local Mean Time)", "Standard time (pytz)"],
+    help="Use LMT for historical charts prior to the late 19th century, when local mean time was the civil standard and modern timezone boundaries didn't yet exist. Standard time relies on a timezone's principal-city offset, which can be several minutes off from a birthplace's true solar longitude.",
+)
+
 st.sidebar.markdown("---")
 st.sidebar.header("Location Data")
 
@@ -1192,17 +1198,28 @@ except ValueError:
 if location_query and lat is not None and lon is not None:
     st.sidebar.success(f"**Resolved:** {lat:.4f}, {lon:.4f}")
 
-    tf = TimezoneFinder()
-    tz_name = tf.timezone_at(lng=lon, lat=lat)
-    
+    local_dt = datetime.combine(input_date, input_time)
+
+    if time_standard == "LMT (Local Mean Time)":
+        # 15 degrees of longitude = 1 hour of time. East is +, West is -.
+        offset_hours = lon / 15.0
+        dt_utc = local_dt - timedelta(hours=offset_hours)
+        tz_name = "LMT"
+        offset_str = (
+            f"{'+' if offset_hours >= 0 else '-'}"
+            f"{abs(int(offset_hours)):02d}:{int((abs(offset_hours) * 60) % 60):02d}:{int((abs(offset_hours) * 3600) % 60):02d}"
+        )
+        st.sidebar.info(f"**Time standard:** Exact LMT\n**UTC offset:** {offset_str}")
+    else:
+        tf = TimezoneFinder()
+        tz_name = tf.timezone_at(lng=lon, lat=lat)
+        if tz_name:
+            local_tz = pytz.timezone(tz_name)
+            localized_dt = local_tz.localize(local_dt)
+            dt_utc = localized_dt.astimezone(pytz.utc)
+            st.sidebar.info(f"**Timezone:** {tz_name}\n**UTC offset:** {dt_utc.strftime('%H:%M:%S')} UTC")
+
     if tz_name:
-        local_tz = pytz.timezone(tz_name)
-        local_dt = datetime.combine(input_date, input_time)
-        localized_dt = local_tz.localize(local_dt)
-        dt_utc = localized_dt.astimezone(pytz.utc)
-        
-        st.sidebar.info(f"**Timezone:** {tz_name}\n**UTC Offset:** {dt_utc.strftime('%H:%M:%S')} UTC")
-        
         chart_data = calculate_traditional_chart(dt_utc, lat, lon)
         p_data = chart_data['planetary_data']
         sect = chart_data['sect']
