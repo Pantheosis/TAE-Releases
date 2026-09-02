@@ -939,20 +939,21 @@ def calculate_classical_lots(asc, sun, moon, sect):
 
 # --- Special Degrees & Conditions ----------------------------------------
 
-# Classical "pitted"/"welled" degrees (Bi'r) by sign, conforming strictly to Al-Biruni.
+# Classical "wells" (pitted degrees) by sign, per Abu Ma'shar, The Great
+# Introduction to Astrology V.21 (Dykes translation, Fig. 98).
 WELLED_DEGREES = {
-    'Aries': [6, 11, 17, 23, 29],
+    'Aries': [6, 11, 17, 23],
     'Taurus': [5, 13, 18, 24, 25, 26],
     'Gemini': [2, 13, 17, 26, 30],
-    'Cancer': [12, 23, 26, 30],
+    'Cancer': [12, 17, 23, 26, 30],
     'Leo': [6, 13, 15, 22, 23, 28],
-    'Virgo': [8, 16, 18, 21, 25],
-    'Libra': [1, 7, 20],
-    'Scorpio': [9, 10, 22, 27],
-    'Sagittarius': [7, 12, 15, 27],
-    'Capricorn': [2, 7, 17, 22, 28],
-    'Aquarius': [1, 12, 14, 23],
-    'Pisces': [2, 9, 27],
+    'Virgo': [8, 13, 16, 21, 25],
+    'Libra': [1, 7, 20, 30],
+    'Scorpio': [9, 10, 17, 22, 23, 27],
+    'Sagittarius': [7, 12, 15, 24, 27, 30],
+    'Capricorn': [2, 7, 17, 22, 24, 28],
+    'Aquarius': [1, 12, 17, 23, 29],
+    'Pisces': [4, 9, 24, 27],
 }
 
 def evaluate_special_degrees(planetary_data):
