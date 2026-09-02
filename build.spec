@@ -116,6 +116,6 @@ if sys.platform == "darwin":
     app = BUNDLE(
         coll,
         name="TraditionalAstrologyEngine.app",
-        icon=None,  # point this at an .icns file if you have one
+        icon="app_icon.icns",
         bundle_identifier="com.yourname.traditionalastrologyengine",
     )
