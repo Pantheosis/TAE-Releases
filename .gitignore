@@ -16,3 +16,4 @@ saved_charts.json
 .DS_Store
 .idea/
 .vscode/
+Python-*.tar.xz
